@@ -18,3 +18,8 @@ A minimal Gin + GORM + PostgreSQL app, containerized with Docker Compose.
    ```bash
     docker-compose up --build
     ```
+   
+3. **Try End point**
+   ```bash
+   curl http://localhost:8080/ping 
+   ```
