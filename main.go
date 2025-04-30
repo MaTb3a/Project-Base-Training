@@ -7,26 +7,30 @@ import (
 	"os"
 	"time"
 
+	"github.com/MaTb3aa/Project-Base-Training/models"
 	"github.com/gin-gonic/gin"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+    "github.com/MaTb3aa/Project-Base-Training/config"
+    "github.com/MaTb3aa/Project-Base-Training/routes"
 )
 
 // connectDatabase attempts to open a GORM connection and ping the DB.
 // It retries up to maxAttempts times, waiting delay between tries.
 func connectDatabase(dsn string, maxAttempts int, delay time.Duration) (*gorm.DB, error) {
-    var db *gorm.DB
+
     var err error
 
     for attempt := 1; attempt <= maxAttempts; attempt++ {
-        db, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
+        config.DB, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
         if err == nil {
             // Verify lower-level connectivity
-            sqlDB, pingErr := db.DB()
+            sqlDB, pingErr := config.DB.DB()
             if pingErr == nil {
                 if pingErr = sqlDB.Ping(); pingErr == nil {
                     log.Printf("✅ Database connected on attempt %d", attempt)
-                    return db, nil
+                    config.DB.AutoMigrate(&models.Document{})
+                    return config.DB, nil
                 }
                 err = fmt.Errorf("ping failed: %w", pingErr)
             } else {
@@ -65,6 +69,8 @@ func main() {
     r.GET("/ping", func(c *gin.Context) {
         c.JSON(http.StatusOK, gin.H{"message": "pong"})
     })
+
+    routes.DocumentRoute(r)
 
     port := getenv("PORT", "8080")
     log.Printf("🚀 Starting server on :%s", port)
