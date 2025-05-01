@@ -1,6 +1,7 @@
 package Services
 
 import (
+	"errors"
 	"time"
 
 	"github.com/MaTb3aa/Project-Base-Training/models"
@@ -18,12 +19,15 @@ func NewDocumentService(repo Repositories.Repository[models.Document]) *Document
 }
 func (s *DocumentService) CreateDoc(model *models.Document) error {
 	if model == nil {
-		return nil
+		return errors.New("document model is nil")
 	}
-	model.ID = 0
-	model.CreatedAt = time.Now()
-	model.Author = "katreen"
-	s.repo.Create(model)
+	model.UpdatedAt = time.Now().UTC()
+	model.CreatedAt = time.Now().UTC()
+
+	if err := s.repo.Create(model); err != nil {
+		return err
+	}
+
 	return nil
 }
 func (s *DocumentService) GetAllDocuments() ([]models.Document, error) {
@@ -42,7 +46,7 @@ func (s *DocumentService) GetDocumentByID(id uint) (models.Document, error) {
 }
 func (s *DocumentService) UpdateDocument(model *models.Document, id uint) error {
 	if model == nil {
-		return nil
+		return errors.New("document model is nil")
 	}
 
 	doc, err := s.repo.GetByID(id)
