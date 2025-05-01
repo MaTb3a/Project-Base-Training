@@ -1,7 +1,6 @@
 package Services
 
 import (
-	"errors"
 	"time"
 
 	"github.com/MaTb3aa/Project-Base-Training/models"
@@ -41,24 +40,32 @@ func (s *DocumentService) GetDocumentByID(id uint) (models.Document, error) {
 	}
 	return doc, nil
 }
-func (s *DocumentService) UpdateDocument(model *models.Document) error {
+func (s *DocumentService) UpdateDocument(model *models.Document, id uint) error {
 	if model == nil {
 		return nil
 	}
 
-	doc, err := s.repo.GetByID(model.ID)
+	doc, err := s.repo.GetByID(id)
 	if err != nil {
 		return err
 	}
-	if doc.ID == 0 {
-		return errors.New("Document not found")
-	}
 
-	model.UpdatedAt = time.Now()
-	err = s.repo.Update(model)
-	if err != nil {
+	doc.Title = model.Title
+	doc.Content = model.Content
+	doc.UpdatedAt = time.Now().UTC()
+
+	if err := s.repo.Update(&doc); err != nil {
 		return err
 	}
 
 	return nil
+}
+
+func (s *DocumentService) DeleteDocument(id uint) error {
+	doc, err := s.repo.GetByID(id)
+	if err != nil {
+		return err
+	}
+
+	return s.repo.Delete(doc.ID)
 }
