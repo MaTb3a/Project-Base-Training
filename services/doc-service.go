@@ -53,7 +53,8 @@ func (s *DocumentService) UpdateDocument(model *models.Document, id uint) error 
 	if err != nil {
 		return err
 	}
-
+	
+	doc.Author = model.Author
 	doc.Title = model.Title
 	doc.Content = model.Content
 	doc.UpdatedAt = time.Now().UTC()

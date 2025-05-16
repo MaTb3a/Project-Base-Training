@@ -19,6 +19,17 @@ func NewDocumentHandler(service *Services.DocumentService) *DocumentHandler {
 	return &DocumentHandler{service: service}
 }
 
+// CreateDocument godoc
+// @Summary Create a new document
+// @Description Create a new document with the input payload
+// @Tags documents
+// @Accept json
+// @Produce json
+// @Param document body models.Document true "Create document"
+// @Success 201 {object} models.Document
+// @Failure 400 {object} models.SwaggerErrorResponse
+// @Failure 500 {object} models.SwaggerErrorResponse
+// @Router /documents/ [post]
 func (h *DocumentHandler) CreateDocument(c *gin.Context) {
 	var doc models.Document
 
@@ -34,6 +45,15 @@ func (h *DocumentHandler) CreateDocument(c *gin.Context) {
 
 	c.JSON(http.StatusCreated, doc)
 }
+
+// GetAllDocuments godoc
+// @Summary Get all documents
+// @Description Get all documents
+// @Tags documents
+// @Produce json
+// @Success 200 {array} models.Document
+// @Failure 500 {object} models.SwaggerErrorResponse
+// @Router /documents/ [get]
 func (h *DocumentHandler) GetAllDocuments(c *gin.Context) {
 	docs, err := h.service.GetAllDocuments()
 	if err != nil {
@@ -43,6 +63,16 @@ func (h *DocumentHandler) GetAllDocuments(c *gin.Context) {
 	c.JSON(http.StatusOK, docs)
 }
 
+// GetDocumentByID godoc
+// @Summary Get document by ID
+// @Description Get document by ID
+// @Tags documents
+// @Produce json
+// @Param id path int true "Document ID"
+// @Success 200 {object} models.Document
+// @Failure 400 {object} models.SwaggerErrorResponse
+// @Failure 404 {object} models.SwaggerErrorResponse
+// @Router /documents/{id} [get]
 func (h *DocumentHandler) GetDocumentByID(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 64)
@@ -58,6 +88,18 @@ func (h *DocumentHandler) GetDocumentByID(c *gin.Context) {
 	c.JSON(http.StatusOK, doc)
 }
 
+// UpdateDocument godoc
+// @Summary Update a document
+// @Description Update a document with the input payload
+// @Tags documents
+// @Accept json
+// @Produce json
+// @Param id path int true "Document ID"
+// @Param document body models.Document true "Update document"
+// @Success 200 {object} models.SwaggerSuccessResponse
+// @Failure 400 {object} models.SwaggerErrorResponse
+// @Failure 500 {object} models.SwaggerErrorResponse
+// @Router /documents/{id} [put]
 func (h *DocumentHandler) UpdateDocument(c *gin.Context) {
 	var doc models.Document
 	idStr := c.Param("id")
@@ -66,7 +108,6 @@ func (h *DocumentHandler) UpdateDocument(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid id"})
 		return
 	}
-
 	if err = c.ShouldBindJSON(&doc); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
 		return
@@ -80,6 +121,17 @@ func (h *DocumentHandler) UpdateDocument(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Document updated successfully"})
 }
 
+// DeleteDocument godoc
+// @Summary Delete a document
+// @Description Delete a document by ID
+// @Tags documents
+// @Produce json
+// @Param id path int true "Document ID"
+// @Success 200 {object} models.SwaggerSuccessResponse
+// @Failure 400 {object} models.SwaggerErrorResponse
+// @Failure 404 {object} models.SwaggerErrorResponse
+// @Failure 500 {object} models.SwaggerErrorResponse
+// @Router /documents/{id} [delete]
 func (h *DocumentHandler) DeleteDocument(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 64)

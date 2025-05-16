@@ -8,8 +8,11 @@ import (
 
 	Repositories "github.com/MaTb3aa/Project-Base-Training/repository"
 	"github.com/MaTb3aa/Project-Base-Training/routes"
+	ginSwagger "github.com/swaggo/gin-swagger"
+    swaggerFiles "github.com/swaggo/files"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+    _ "github.com/MaTb3aa/Project-Base-Training/docs"
 
 	Handlers "github.com/MaTb3aa/Project-Base-Training/handdlers"
 	"github.com/MaTb3aa/Project-Base-Training/models"
@@ -51,6 +54,13 @@ func connectDatabase(dsn string, maxAttempts int, delay time.Duration) (*gorm.DB
 	return nil, err
 }
 
+// @title Documents Service API
+// @version 1.0
+// @description This is a API for managing documents.
+
+// @host localhost:8080
+// @BasePath /
+
 func main() {
 	//Build the Postgres DSN from environment
 	dsn := fmt.Sprintf(
@@ -81,6 +91,7 @@ func main() {
 	docHandler := Handlers.NewDocumentHandler(docService)
 
 	r := routes.SetupRouter(docHandler)
+    r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 	port := getenv("PORT", "8080")
 	log.Printf("🚀 Starting server on :%s", port)
 	if err := r.Run(":" + port); err != nil {
