@@ -35,7 +35,7 @@ func connectDatabase(dsn string, maxAttempts int, delay time.Duration) (*gorm.DB
 				if pingErr = sqlDB.Ping(); pingErr == nil {
 					log.Printf("✅ Database connected on attempt %d", attempt)
 					// Run migration AFTER DB is ready
-					if migrateErr := db.AutoMigrate(&models.DocumentFromOrm{}); migrateErr != nil {
+					if migrateErr := db.AutoMigrate(&models.Document{}); migrateErr != nil {
 						return nil, fmt.Errorf("Migration failed: %w", migrateErr)
 					}
 					return db, nil
@@ -74,7 +74,7 @@ func main() {
 
 
 	//database migration
-	if err := db.AutoMigrate(&models.DocumentFromOrm{}); err != nil {
+	if err := db.AutoMigrate(&models.Document{}); err != nil {
 		log.Fatal("Migration failed:", err)
 	}
 	log.Println("✅ Database connected successfully")
