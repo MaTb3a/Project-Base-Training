@@ -6,17 +6,20 @@ import (
 	"os"
 	"time"
 
+	"github.com/MaTb3aa/Project-Base-Training/docs"
+	_ "github.com/MaTb3aa/Project-Base-Training/docs"
 	Repositories "github.com/MaTb3aa/Project-Base-Training/repository"
 	"github.com/MaTb3aa/Project-Base-Training/routes"
+	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
-    swaggerFiles "github.com/swaggo/files"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
-    _ "github.com/MaTb3aa/Project-Base-Training/docs"
 
-	Handlers "github.com/MaTb3aa/Project-Base-Training/handdlers"
+	"github.com/MaTb3aa/Project-Base-Training/config"
+	Handlers "github.com/MaTb3aa/Project-Base-Training/handlers"
 	"github.com/MaTb3aa/Project-Base-Training/models"
 	Services "github.com/MaTb3aa/Project-Base-Training/services"
+	"github.com/gin-gonic/gin"
 )
 
 // connectDatabase attempts to open a GORM connection and ping the DB.
@@ -62,24 +65,18 @@ func connectDatabase(dsn string, maxAttempts int, delay time.Duration) (*gorm.DB
 // @BasePath /
 
 func main() {
-	//Build the Postgres DSN from environment
-	dsn := fmt.Sprintf(
-		"host=%s user=%s password=%s dbname=%s port=%s sslmode=%s",
-		getenv("DB_HOST", "localhost"),
-		getenv("DB_USER", "postgres"),
-		getenv("DB_PASSWORD", "postgres"),
-		getenv("DB_NAME", "document_db"),
-		getenv("DB_PORT", "5432"),
-		getenv("DB_SSL_MODE", "disable"),
-	)
+	// Load configuration
+	cfg := config.LoadConfig()
 
-	var db *gorm.DB
-	var err error
-	db, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	// Set Gin mode
+	gin.SetMode(cfg.GinMode)
 
+	// Connect to database using config
+	db, err := gorm.Open(postgres.Open(cfg.GetDSN()), &gorm.Config{})
 	if err != nil {
 		log.Fatalf("❌ Could not connect to database: %v", err)
 	}
+
 	//database migration
 	if err := db.AutoMigrate(&models.DocumentFromOrm{}); err != nil {
 		log.Fatal("Migration failed:", err)
@@ -90,11 +87,15 @@ func main() {
 	docService := Services.NewDocumentService(repo)
 	docHandler := Handlers.NewDocumentHandler(docService)
 
+	// Update SwaggerInfo
+	docs.SwaggerInfo.Host = cfg.SwaggerHost
+
 	r := routes.SetupRouter(docHandler)
-    r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
-	port := getenv("PORT", "8080")
-	log.Printf("🚀 Starting server on :%s", port)
-	if err := r.Run(":" + port); err != nil {
+	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+
+	// Use config port
+	log.Printf("🚀 Starting server on :%s", cfg.APIPort)
+	if err := r.Run(":" + cfg.APIPort); err != nil {
 		log.Fatalf("Server failed: %v", err)
 	}
 }
