@@ -3,7 +3,7 @@ package routes
 import (
 	"net/http"
 
-	Handlers "github.com/MaTb3aa/Project-Base-Training/handdlers"
+	Handlers "github.com/MaTb3aa/Project-Base-Training/handlers"
 	"github.com/gin-gonic/gin"
 )
 

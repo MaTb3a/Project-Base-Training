@@ -3,20 +3,22 @@ package main
 import (
 	"fmt"
 	"log"
-	"os"
 	"time"
 
+	"github.com/MaTb3aa/Project-Base-Training/docs"
+	_ "github.com/MaTb3aa/Project-Base-Training/docs"
 	Repositories "github.com/MaTb3aa/Project-Base-Training/repository"
 	"github.com/MaTb3aa/Project-Base-Training/routes"
+	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
-    swaggerFiles "github.com/swaggo/files"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
-    _ "github.com/MaTb3aa/Project-Base-Training/docs"
 
-	Handlers "github.com/MaTb3aa/Project-Base-Training/handdlers"
+	"github.com/MaTb3aa/Project-Base-Training/config"
+	Handlers "github.com/MaTb3aa/Project-Base-Training/handlers"
 	"github.com/MaTb3aa/Project-Base-Training/models"
 	Services "github.com/MaTb3aa/Project-Base-Training/services"
+	"github.com/gin-gonic/gin"
 )
 
 // connectDatabase attempts to open a GORM connection and ping the DB.
@@ -26,18 +28,16 @@ func connectDatabase(dsn string, maxAttempts int, delay time.Duration) (*gorm.DB
 	var err error
 
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
-		db, err = gorm.Open(postgres.Open("host=localhost user=postgres password=123 dbname=document_db port=5432 sslmode=disable"), &gorm.Config{})
-
-		//database migration
-		if err := db.AutoMigrate(&models.DocumentFromOrm{}); err != nil {
-			log.Fatal("Migration failed:", err)
-		}
+		db, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
 		if err == nil {
-			// Verify lower-level connectivity
 			sqlDB, pingErr := db.DB()
 			if pingErr == nil {
 				if pingErr = sqlDB.Ping(); pingErr == nil {
 					log.Printf("✅ Database connected on attempt %d", attempt)
+					// Run migration AFTER DB is ready
+					if migrateErr := db.AutoMigrate(&models.Document{}); migrateErr != nil {
+						return nil, fmt.Errorf("Migration failed: %w", migrateErr)
+					}
 					return db, nil
 				}
 				err = fmt.Errorf("ping failed: %w", pingErr)
@@ -45,14 +45,12 @@ func connectDatabase(dsn string, maxAttempts int, delay time.Duration) (*gorm.DB
 				err = fmt.Errorf("getting raw DB handle failed: %w", pingErr)
 			}
 		}
-
 		log.Printf("⚠️  Attempt %d/%d to connect database failed: %v", attempt, maxAttempts, err)
 		time.Sleep(delay)
 	}
-	db.AutoMigrate(&models.DocumentFromOrm{})
-
 	return nil, err
 }
+
 
 // @title Documents Service API
 // @version 1.0
@@ -62,26 +60,21 @@ func connectDatabase(dsn string, maxAttempts int, delay time.Duration) (*gorm.DB
 // @BasePath /
 
 func main() {
-	//Build the Postgres DSN from environment
-	dsn := fmt.Sprintf(
-		"host=%s user=%s password=%s dbname=%s port=%s sslmode=%s",
-		getenv("DB_HOST", "localhost"),
-		getenv("DB_USER", "postgres"),
-		getenv("DB_PASSWORD", "postgres"),
-		getenv("DB_NAME", "document_db"),
-		getenv("DB_PORT", "5432"),
-		getenv("DB_SSL_MODE", "disable"),
-	)
+	// Load configuration
+	cfg := config.LoadConfig()
 
-	var db *gorm.DB
-	var err error
-	db, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	// Set Gin mode
+	gin.SetMode(cfg.GinMode)
 
+	// Connect to database using config
+	db, err := connectDatabase(cfg.GetDSN(), 10, 2*time.Second) // 10 attempts, 2s apart
 	if err != nil {
-		log.Fatalf("❌ Could not connect to database: %v", err)
+		log.Fatalf("❌ Could not connect to database after retries: %v", err)
 	}
+
+
 	//database migration
-	if err := db.AutoMigrate(&models.DocumentFromOrm{}); err != nil {
+	if err := db.AutoMigrate(&models.Document{}); err != nil {
 		log.Fatal("Migration failed:", err)
 	}
 	log.Println("✅ Database connected successfully")
@@ -90,20 +83,16 @@ func main() {
 	docService := Services.NewDocumentService(repo)
 	docHandler := Handlers.NewDocumentHandler(docService)
 
+	// Update SwaggerInfo
+	docs.SwaggerInfo.Host = cfg.SwaggerHost
+
 	r := routes.SetupRouter(docHandler)
-    r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
-	port := getenv("PORT", "8080")
-	log.Printf("🚀 Starting server on :%s", port)
-	if err := r.Run(":" + port); err != nil {
+	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+
+	// Use config port
+	log.Printf("🚀 Starting server on :%s", cfg.APIPort)
+	if err := r.Run(":" + cfg.APIPort); err != nil {
 		log.Fatalf("Server failed: %v", err)
 	}
 }
 
-// getenv returns the value of the environment variable named by the key,
-// or fallback if the variable is empty or not present.
-func getenv(key, fallback string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
-	}
-	return fallback
-}
