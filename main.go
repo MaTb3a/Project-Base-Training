@@ -64,6 +64,7 @@ func main() {
 
 	// Load .env in local/dev environments
 	_ = godotenv.Load()
+
 	waitForDependencies()
 
 	cfg := config.LoadConfig()
@@ -92,4 +93,30 @@ func main() {
 	if err := r.Run(":" + cfg.APIPort); err != nil {
 		log.Fatal("❌ Server failed:", err)
 	}
+
+	// Graceful shutdown
+	srv := &http.Server{
+		Addr:    ":" + cfg.APIPort,
+		Handler: r,
+	}
+
+	go func() {
+		log.Printf("🚀 Starting server on :%s", cfg.APIPort)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("❌ Server failed: %v", err)
+		}
+	}()
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+	log.Println("⏳ Shutting down server...")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := srv.Shutdown(ctx); err != nil {
+		log.Fatal("❌ Server shutdown failed:", err)
+	}
+
+	log.Println("✅ Server exited cleanly")
 }
