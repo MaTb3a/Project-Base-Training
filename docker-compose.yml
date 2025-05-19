@@ -1,7 +1,7 @@
-version: '3.8'
+
 services:
   db:
-    container_name: document_db
+    container_name: wikidocify_db
     image: postgres:17
     restart: always
     environment:
@@ -10,17 +10,22 @@ services:
       POSTGRES_DB: document_db
     ports:
       - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD", "pg_isready", "-U", "postgres"]
       interval: 5s
       timeout: 5s
       retries: 5
+    networks:
+      - wikidocify_network
 
-  doc_app:
-    container_name: document_app
+  app:
+    container_name: wikidocify_app
     build: .
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     environment:
       DB_HOST: db
       DB_USER: postgres
@@ -28,6 +33,16 @@ services:
       DB_NAME: document_db
       DB_PORT: 5432
       DB_SSL_MODE: disable
-      PORT: 8080
+      PORT: 8888
     ports:
-      - "8080:8080"
+      - "8888:8888"
+    networks:
+      - wikidocify_network
+
+networks:
+  wikidocify_network:
+    name: wikidocify_network
+
+volumes:
+  postgres_data:
+    name: wikidocify_postgres_data
