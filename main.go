@@ -5,24 +5,31 @@ import (
 	"log"
 	"time"
 
-	"github.com/MaTb3aa/Project-Base-Training/docs"
-	_ "github.com/MaTb3aa/Project-Base-Training/docs"
-	Repositories "github.com/MaTb3aa/Project-Base-Training/repository"
-	"github.com/MaTb3aa/Project-Base-Training/routes"
-	swaggerFiles "github.com/swaggo/files"
-	ginSwagger "github.com/swaggo/gin-swagger"
+	"github.com/gin-gonic/gin"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 
 	"github.com/MaTb3aa/Project-Base-Training/config"
-	Handlers "github.com/MaTb3aa/Project-Base-Training/handlers"
+	"github.com/MaTb3aa/Project-Base-Training/docs"
+	"github.com/MaTb3aa/Project-Base-Training/handlers"
 	"github.com/MaTb3aa/Project-Base-Training/models"
-	Services "github.com/MaTb3aa/Project-Base-Training/services"
-	"github.com/gin-gonic/gin"
+	"github.com/MaTb3aa/Project-Base-Training/repository"
+	"github.com/MaTb3aa/Project-Base-Training/routes"
+	"github.com/MaTb3aa/Project-Base-Training/services"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
+	"wikidocify/internal/utils"
 )
 
-// connectDatabase attempts to open a GORM connection and ping the DB.
-// It retries up to maxAttempts times, waiting delay between tries.
+func waitForDependencies() {
+	if err := utils.WaitForService("db", "5432", 30*time.Second); err != nil {
+		log.Fatal("Database not ready:", err)
+	}
+	if err := utils.WaitForService("minio", "9000", 30*time.Second); err != nil {
+		log.Fatal("MinIO not ready:", err)
+	}
+}
+
 func connectDatabase(dsn string, maxAttempts int, delay time.Duration) (*gorm.DB, error) {
 	var db *gorm.DB
 	var err error
@@ -31,68 +38,50 @@ func connectDatabase(dsn string, maxAttempts int, delay time.Duration) (*gorm.DB
 		db, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
 		if err == nil {
 			sqlDB, pingErr := db.DB()
-			if pingErr == nil {
-				if pingErr = sqlDB.Ping(); pingErr == nil {
-					log.Printf("✅ Database connected on attempt %d", attempt)
-					// Run migration AFTER DB is ready
-					if migrateErr := db.AutoMigrate(&models.Document{}); migrateErr != nil {
-						return nil, fmt.Errorf("Migration failed: %w", migrateErr)
-					}
-					return db, nil
-				}
-				err = fmt.Errorf("ping failed: %w", pingErr)
-			} else {
-				err = fmt.Errorf("getting raw DB handle failed: %w", pingErr)
+			if pingErr == nil && sqlDB.Ping() == nil {
+				log.Printf("✅ Connected to database on attempt %d", attempt)
+				return db, nil
 			}
 		}
-		log.Printf("⚠️  Attempt %d/%d to connect database failed: %v", attempt, maxAttempts, err)
+		log.Printf("⚠️  Attempt %d/%d failed: %v", attempt, maxAttempts, err)
 		time.Sleep(delay)
 	}
-	return nil, err
+	return nil, fmt.Errorf("database connection failed: %w", err)
 }
-
 
 // @title Documents Service API
 // @version 1.0
-// @description This is a API for managing documents.
-
+// @description API for managing documents.
 // @host localhost:8080
 // @BasePath /
 
 func main() {
-	// Load configuration
-	cfg := config.LoadConfig()
+	waitForDependencies()
 
-	// Set Gin mode
+	cfg := config.LoadConfig()
 	gin.SetMode(cfg.GinMode)
 
-	// Connect to database using config
-	db, err := connectDatabase(cfg.GetDSN(), 10, 2*time.Second) // 10 attempts, 2s apart
+	db, err := connectDatabase(cfg.GetDSN(), 10, 2*time.Second)
 	if err != nil {
-		log.Fatalf("❌ Could not connect to database after retries: %v", err)
+		log.Fatal("❌ Could not connect to database:", err)
 	}
 
-
-	//database migration
 	if err := db.AutoMigrate(&models.Document{}); err != nil {
-		log.Fatal("Migration failed:", err)
+		log.Fatal("❌ Migration failed:", err)
 	}
-	log.Println("✅ Database connected successfully")
+	log.Println("✅ Database migration completed")
 
-	repo := Repositories.NewGormRepository[models.Document](db)
-	docService := Services.NewDocumentService(repo)
-	docHandler := Handlers.NewDocumentHandler(docService)
+	repo := repository.NewGormRepository[models.Document](db)
+	service := services.NewDocumentService(repo)
+	handler := handlers.NewDocumentHandler(service)
 
-	// Update SwaggerInfo
 	docs.SwaggerInfo.Host = cfg.SwaggerHost
 
-	r := routes.SetupRouter(docHandler)
+	r := routes.SetupRouter(handler)
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
-	// Use config port
 	log.Printf("🚀 Starting server on :%s", cfg.APIPort)
 	if err := r.Run(":" + cfg.APIPort); err != nil {
-		log.Fatalf("Server failed: %v", err)
+		log.Fatal("❌ Server failed:", err)
 	}
 }
-
