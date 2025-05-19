@@ -61,6 +61,9 @@ func connectDatabase(dsn string, maxAttempts int, delay time.Duration) (*gorm.DB
 // @BasePath /
 
 func main() {
+
+	// Load .env in local/dev environments
+	_ = godotenv.Load()
 	waitForDependencies()
 
 	cfg := config.LoadConfig()
